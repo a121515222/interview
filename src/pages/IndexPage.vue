@@ -4,7 +4,9 @@
       <div class="q-mb-xl">
         <q-input v-model="tempData.name" label="姓名" />
         <q-input v-model="tempData.age" label="年齡" />
-        <q-btn color="primary" class="q-mt-md">新增</q-btn>
+        <q-btn color="primary" class="q-mt-md" @click="handleSendData">{{
+          isEdit ? '更新' : '新增'
+        }}</q-btn>
       </div>
 
       <q-table
@@ -80,7 +82,11 @@
 <script setup lang="ts">
 import axios from 'axios';
 import { QTableProps } from 'quasar';
-import { ref } from 'vue';
+import { ref, onMounted } from 'vue';
+import { api } from 'src/boot/axios';
+import { date } from 'quasar';
+import { useQuasar } from 'quasar';
+const $q = useQuasar();
 interface btnType {
   label: string;
   icon: string;
@@ -124,8 +130,124 @@ const tempData = ref({
   age: '',
 });
 function handleClickOption(btn, data) {
-  // ...
+  if (btn.status === 'edit') {
+    isEdit.value = true;
+    tempData.value = data;
+  }
+  if (btn.status === 'delete') {
+    handleDelete(data.id);
+  }
 }
+const isEdit = ref(false);
+const baseUrl = process.env.API;
+const getData = async () => {
+  const res = await api.get(`${baseUrl}api/CRUDTest/a`);
+  const { data } = res;
+  blockData.value = data;
+  isEdit.value = false;
+};
+const postData = async () => {
+  const res = await api.post(
+    `${baseUrl}api/CRUDTest`,
+    JSON.stringify(tempData.value),
+    {
+      headers: {
+        'Content-Type': 'application/json', // 设置请求头
+      },
+    }
+  );
+  const { data } = res;
+};
+
+const handlePostData = async () => {
+  handleValidate();
+  await postData();
+  await getData();
+  resetTempData();
+};
+const handleValidate = () => {
+  const { name, age } = tempData.value;
+  if (!name) {
+    handleAlert('名稱不可為空白');
+    return false;
+  }
+  if (!age) {
+    handleAlert('年齡不可為空白');
+    return false;
+  }
+  if (!Number.isInteger(Number(age)) || Number(age) <= 0) {
+    handleAlert('年齡必須為正整數');
+    return false;
+  }
+  return true;
+};
+const handleAlert = (alertMessage) => {
+  $q.dialog({
+    title: 'Alert',
+    message: alertMessage,
+  });
+};
+const handleSendData = async () => {
+  if (isEdit.value) {
+    await handleEditData();
+  } else {
+    await handlePostData();
+  }
+};
+const handleEditData = async () => {
+  const res = await api.patch(
+    `${baseUrl}api/CRUDTest`,
+    JSON.stringify(tempData.value),
+    {
+      headers: {
+        'Content-Type': 'application/json', // 设置请求头
+      },
+    }
+  );
+  const { data } = res;
+  if (data) {
+    await getData();
+    resetTempData();
+  }
+};
+const deleteData = async (id) => {
+  const res = await api.delete(`${baseUrl}api/CRUDTest/${id}`, {
+    data: JSON.stringify(tempData.value),
+    headers: {
+      'Content-Type': 'application/json', // 设置请求头
+    },
+  });
+  const { data } = res;
+  if (data) {
+    await getData();
+  }
+};
+const handleDelete = async (id) => {
+  $q.dialog({
+    title: '確認刪除',
+    message: '確定要刪除嗎?',
+    ok: {
+      label: '確定',
+      color: 'negative',
+    },
+    cancel: {
+      label: '取消',
+      color: 'grey-8',
+    },
+  }).onOk(() => {
+    deleteData(id);
+  });
+};
+const resetTempData = () => {
+  tempData.value = {
+    id: '',
+    name: '',
+    age: '',
+  };
+};
+onMounted(async () => {
+  await getData();
+});
 </script>
 
 <style lang="scss" scoped>
